@@ -1,0 +1,9 @@
+.env
+*.key
+*.pem
+credentials/
+data/raw/
+data/processed/
+_pycache_/
+.DS_Store
+.ipynb_checkpoints/
