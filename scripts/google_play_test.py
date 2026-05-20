@@ -4,9 +4,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 import time
 
-# -----------------------------
-# Configuration
-# -----------------------------
 APP_ID = "com.spotify.music"  # Example: Duolingo on Google Play
 APP_NAME = "Spotify"
 COUNTRY = "us"
