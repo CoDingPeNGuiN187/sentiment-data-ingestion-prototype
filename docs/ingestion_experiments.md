@@ -41,7 +41,7 @@ Used a small Python script with `google-play-scraper` to collect recent English 
 - collected_at
 
 **Initial observations:** 
-THe script successfully collected 1000 reviews and saved them into a structured CSV file. The collected data includes review text, star ratings, review timestamps, app version information, thumbs-up counts, developer responses when available, and a collection timestamp.
+THe script successfully collected 2000 reviews and saved them into a structured CSV file. The collected data includes review text, star ratings, review timestamps, app version information, thumbs-up counts, developer responses when available, and a collection timestamp.
 
 The review structure appears usable for downstream cleaning and sentiment analysis. Several fields are consistently avaiable such as review text, rating, review date, and review ID. There are also missing fields, such as app version and developer response, may be missing for certain reviews.
 
