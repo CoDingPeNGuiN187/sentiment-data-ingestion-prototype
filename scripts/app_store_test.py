@@ -4,9 +4,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 import time
 
-# -----------------------------
-# Configuration
-# -----------------------------
 APP_ID = 324684580  # App id on Apple App Store
 APP_NAME = "Spotify"
 COUNTRY = "us"
