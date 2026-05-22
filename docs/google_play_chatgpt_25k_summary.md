@@ -1,4 +1,4 @@
-# Google Play ChatGPT 10k Review Collection Summary
+# Google Play ChatGPT 25k Review Collection Summary
 
 ## Collection Setup
 
