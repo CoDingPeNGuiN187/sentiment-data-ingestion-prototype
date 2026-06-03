@@ -7,3 +7,5 @@ data/processed/
 _pycache_/
 .DS_Store
 .ipynb_checkpoints/
+data/database/
+*.db
