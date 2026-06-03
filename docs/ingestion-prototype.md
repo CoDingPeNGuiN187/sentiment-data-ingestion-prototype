@@ -1,8 +1,5 @@
 ## Initial Prototype Run
 
-**Date:**  
-2026-05-XX
-
 **Source:**  
 Google Play Store
 
