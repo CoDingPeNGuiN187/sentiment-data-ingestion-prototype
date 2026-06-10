@@ -20,14 +20,10 @@ OUTPUT_MD = REPO_ROOT / "docs" / "ingestion_frequency_test.md"
 # Each tuple means: (run label, seconds to wait before this run)
 # First run starts immediately.
 TEST_PLAN = [
-    ("baseline", 0),
-    ("1_min_repeat_1", 60),
-    ("1_min_repeat_2", 60),
-    ("5_min_repeat", 300),
-    ("baseline_long_interval_test", 0),
-    ("15_min_repeat", 900),
-    ("30_min_repeat", 1800),
-    ("1_hour_repeat", 3600),]
+    ("long_classification_baseline", 0),
+    ("long_classification_30_min", 1800),
+    ("long_classification_1_hour", 3600),
+]
 
 OUTPUT_CSV = OUTPUT_DIR / "ingestion_frequency_results_15_30_60min.csv"
 OUTPUT_MD = REPO_ROOT / "docs" / "ingestion_frequency_test_15_30_60min.md"
@@ -66,12 +62,13 @@ def run_ingestion_script():
 
 def get_latest_ingestion_run():
     """
-    Read the latest ingestion run result from SQLite.
+    Read the latest ingestion run result from SQLite and compute freshness metrics.
     """
     conn = sqlite3.connect(DATABASE_PATH)
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
 
+    # Latest ingestion run
     cursor.execute(
         """
         SELECT
@@ -91,27 +88,108 @@ def get_latest_ingestion_run():
         """
     )
 
-    run = cursor.fetchone()
+    latest_run = cursor.fetchone()
 
+    if latest_run is None:
+        conn.close()
+        return None
+
+    latest_run_id = latest_run["ingestion_run_id"]
+
+    # Previous ingestion run, if any
+    cursor.execute(
+        """
+        SELECT
+            ingestion_run_id,
+            completed_at
+        FROM ingestion_runs
+        WHERE ingestion_run_id < ?
+        ORDER BY ingestion_run_id DESC
+        LIMIT 1;
+        """,
+        (latest_run_id,),
+    )
+
+    previous_run = cursor.fetchone()
+    previous_completed_at = previous_run["completed_at"] if previous_run else None
+
+    # Total reviews after this run
     cursor.execute("SELECT COUNT(*) AS total_reviews FROM reviews;")
     total_reviews = cursor.fetchone()["total_reviews"]
 
+    # Date range for reviews inserted in this run
+    cursor.execute(
+        """
+        SELECT
+            MIN(review_date) AS min_inserted_review_date,
+            MAX(review_date) AS max_inserted_review_date,
+            COUNT(*) AS inserted_review_rows
+        FROM reviews
+        WHERE ingestion_run_id = ?;
+        """,
+        (latest_run_id,),
+    )
+
+    inserted_date_summary = cursor.fetchone()
+
+    min_inserted_review_date = inserted_date_summary["min_inserted_review_date"]
+    max_inserted_review_date = inserted_date_summary["max_inserted_review_date"]
+    inserted_review_rows = inserted_date_summary["inserted_review_rows"]
+
+    newly_created_since_last_run_count = None
+    old_but_new_to_database_count = None
+
+    if previous_completed_at is not None:
+        # Reviews inserted in this run whose review_date is later than previous run completion time
+        cursor.execute(
+            """
+            SELECT COUNT(*) AS newly_created_count
+            FROM reviews
+            WHERE ingestion_run_id = ?
+              AND review_date > ?;
+            """,
+            (latest_run_id, previous_completed_at),
+        )
+
+        newly_created_since_last_run_count = cursor.fetchone()["newly_created_count"]
+
+        # Reviews inserted in this run but with review_date earlier than or equal to previous completion time
+        cursor.execute(
+            """
+            SELECT COUNT(*) AS old_but_new_count
+            FROM reviews
+            WHERE ingestion_run_id = ?
+              AND review_date <= ?;
+            """,
+            (latest_run_id, previous_completed_at),
+        )
+
+        old_but_new_to_database_count = cursor.fetchone()["old_but_new_count"]
+
     conn.close()
 
-    if run is None:
-        return None
+    shifted_window_possible = False
+    if old_but_new_to_database_count is not None and old_but_new_to_database_count > 0:
+        shifted_window_possible = True
 
     return {
-        "ingestion_run_id": run["ingestion_run_id"],
-        "requested_count": run["requested_count"],
-        "collected_count": run["collected_count"],
-        "inserted_count": run["inserted_count"],
-        "duplicate_count": run["duplicate_count"],
-        "runtime_seconds": run["runtime_seconds"],
-        "status": run["status"],
-        "started_at": run["started_at"],
-        "completed_at": run["completed_at"],
-        "notes": run["notes"],
+        "ingestion_run_id": latest_run["ingestion_run_id"],
+        "requested_count": latest_run["requested_count"],
+        "collected_count": latest_run["collected_count"],
+        "inserted_count": latest_run["inserted_count"],
+        "duplicate_count": latest_run["duplicate_count"],
+        "runtime_seconds": latest_run["runtime_seconds"],
+        "status": latest_run["status"],
+        "started_at": latest_run["started_at"],
+        "completed_at": latest_run["completed_at"],
+        "notes": latest_run["notes"],
+        "previous_run_completed_at": previous_completed_at,
+        "min_inserted_review_date": min_inserted_review_date,
+        "max_inserted_review_date": max_inserted_review_date,
+        "inserted_review_rows": inserted_review_rows,
+        "newly_created_since_last_run_count": newly_created_since_last_run_count,
+        "old_but_new_to_database_count": old_but_new_to_database_count,
+        "shifted_window_possible": shifted_window_possible,
         "total_reviews_after_run": total_reviews,
     }
 
@@ -156,6 +234,13 @@ def write_csv(results):
         "started_at",
         "completed_at",
         "notes",
+        "previous_run_completed_at",
+        "min_inserted_review_date",
+        "max_inserted_review_date",
+        "inserted_review_rows",
+        "newly_created_since_last_run_count",
+        "old_but_new_to_database_count",
+        "shifted_window_possible",
     ]
 
     with open(OUTPUT_CSV, "w", newline="", encoding="utf-8") as f:

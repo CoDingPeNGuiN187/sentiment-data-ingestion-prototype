@@ -47,6 +47,7 @@ CREATE TABLE IF NOT EXISTS reviews (
 
     FOREIGN KEY (app_id) REFERENCES apps(app_id),
     FOREIGN KEY (ingestion_run_id) REFERENCES ingestion_runs(ingestion_run_id),
+
     UNIQUE (app_id, platform_review_id)
 );
 
@@ -56,13 +57,38 @@ CREATE TABLE IF NOT EXISTS review_quality_features (
 
     review_char_length INTEGER,
     review_word_count INTEGER,
-    is_very_short BOOLEAN,
-    is_generic_text BOOLEAN,
-    is_low_signal BOOLEAN,
-    is_duplicate_text BOOLEAN,
+    is_very_short INTEGER,
+    is_generic_text INTEGER,
+    is_low_signal INTEGER,
+    is_duplicate_text INTEGER,
     detected_language TEXT,
 
     processed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 
     FOREIGN KEY (review_id) REFERENCES reviews(review_id)
+);
+
+-- Records every review returned by the source in each ingestion run.
+-- This table is used to analyze source-window overlap, shifted windows,
+-- and freshness classification.
+CREATE TABLE IF NOT EXISTS source_window_reviews (
+    source_window_review_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    ingestion_run_id INTEGER NOT NULL,
+    app_id INTEGER NOT NULL,
+
+    platform_review_id TEXT NOT NULL,
+    review_date TIMESTAMP,
+    returned_position INTEGER,
+    collected_at TIMESTAMP,
+
+    ingestion_category TEXT,
+    is_existing_review INTEGER,
+    is_newly_created INTEGER,
+    is_old_but_new_to_database INTEGER,
+    previous_watermark_review_date TIMESTAMP,
+
+    FOREIGN KEY (ingestion_run_id) REFERENCES ingestion_runs(ingestion_run_id),
+    FOREIGN KEY (app_id) REFERENCES apps(app_id),
+
+    UNIQUE (ingestion_run_id, platform_review_id)
 );
